@@ -3,6 +3,12 @@
 #define MEMLENGTH 4096
 #define HEADER_SIZE 8
 
+#ifdef DEBUG
+#define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) ((void)0)
+#endif
+
 static union {
     char bytes[MEMLENGTH];
     double not_used;
@@ -24,13 +30,14 @@ static void set_chunk_size(char *ptr, size_t size) {
 
 /** Traverse through all chunks and see if any are still allocated  */
 static void leak_check() {
+    DEBUG_PRINT("leak_check called.\n");
     char *chunk_ptr = heap.bytes;
     unsigned allocated_chunks = 0;
     unsigned allocated_bytes = 0;
 
     while (chunk_ptr < end_point) {
         unsigned cur_chunk_size = get_cur_chunk_size(chunk_ptr);
-
+        DEBUG_PRINT("cur: %p, size = %d\n", chunk_ptr, cur_chunk_size);
         if (*chunk_ptr) {
             allocated_chunks++;
             allocated_bytes += cur_chunk_size;
@@ -64,6 +71,7 @@ static void initialize_heap() {
  * @return Pointer to the allocated memory, or NULL if allocation fails.
  */
 void *mymalloc(size_t size, char *file, int line) {
+    DEBUG_PRINT("malloc called.\n");
     if (!is_initialized) {
         initialize_heap();
     } // initialize heap if not initialized
@@ -79,6 +87,7 @@ void *mymalloc(size_t size, char *file, int line) {
         To jump to new chunk, add the header size and chunk size
         */
         unsigned cur_chunk_size = get_cur_chunk_size(chunk_ptr);
+        DEBUG_PRINT("cur: %p, size = %d\n", chunk_ptr, cur_chunk_size);
         if (chunk_ptr[0] == 0) {
             // If perfect fit, don't split anything
             if (cur_chunk_size == size) {

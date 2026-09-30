@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -std=c99 -g -Wall -fsanitize=address,undefined -Iinclude
+CFLAGS = -std=c99 -g -Wall -fsanitize=address,undefined -Iinclude -DDEBUG
 
 all: build/memtest build/memgrind
 
