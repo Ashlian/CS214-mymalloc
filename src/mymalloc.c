@@ -23,7 +23,26 @@ static void set_chunk_size(char *ptr, size_t size) {
 }
 
 /** Traverse through all chunks and see if any are still allocated  */
-static void leak_check() {}
+static void leak_check() {
+    char *chunk_ptr = heap.bytes;
+    unsigned allocated_chunks = 0;
+    unsigned allocated_bytes = 0;
+
+    while (chunk_ptr < end_point) {
+        unsigned cur_chunk_size = get_cur_chunk_size(chunk_ptr);
+
+        if (*chunk_ptr) {
+            allocated_chunks++;
+            allocated_bytes += cur_chunk_size;
+        }
+
+        chunk_ptr += (cur_chunk_size + HEADER_SIZE);
+    }
+
+    if (allocated_chunks > 0) {
+        fprintf(stderr, "myalloc: %d bytes leaked in %d objects.", allocated_bytes, allocated_chunks);
+    }
+}
 
 /** Set up the first chunk - pointer points to the start of the metadata (8 bytes) */
 static void initialize_heap() {
