@@ -42,14 +42,14 @@ static void set_prev_chunk_size(char *ptr, size_t size) {
 
 /** Traverse through all chunks and see if any are still allocated  */
 static void leak_check() {
-    DEBUG_PRINT("leak_check called.\n");
+    DEBUG_PRINT("\n(leak_check called.)\n");
     char *chunk_ptr = heap.bytes;
     unsigned allocated_chunks = 0;
     size_t allocated_bytes = 0;
 
     while (chunk_ptr < end_ptr) {
         size_t cur_chunk_size = get_cur_chunk_size(chunk_ptr);
-        DEBUG_PRINT("cur: %p, size = %zu\n", chunk_ptr, cur_chunk_size);
+        DEBUG_PRINT("leak: cur: %p, size = %zu\n", chunk_ptr, cur_chunk_size);
         if (is_allocated(chunk_ptr)) {
             allocated_chunks++;
             allocated_bytes += cur_chunk_size;
@@ -71,8 +71,9 @@ static void initialize_heap() {
     size_t first_chunk_size = MEMLENGTH - HEADER_SIZE;
 
     set_cur_chunk_size(heap.bytes, first_chunk_size); // Initialize first chunk size
-    atexit(leak_check);                               // Run leak check after main exits
-    is_initialized = 1;                               // Update flag
+    // set_prev_chunk_size(heap.bytes, 0);
+    atexit(leak_check); // Run leak check after main exits
+    is_initialized = 1; // Update flag
 
     DEBUG_PRINT("Heap initalization sucessful.\n");
 }
@@ -86,12 +87,12 @@ static void initialize_heap() {
  * @return Pointer to the allocated memory, or NULL if allocation fails.
  */
 void *mymalloc(size_t size, char *file, int line) {
-    size = (size + 7) & ~7; // Round size to nearest multiple of 8 (Alignment Padding)
-    DEBUG_PRINT("malloc called with size: %zu\n", size);
     // Initialize heap if not initialized
     if (!is_initialized) {
         initialize_heap();
     }
+    size = (size + 7) & ~7; // Round size to nearest multiple of 8 (Alignment Padding)
+    DEBUG_PRINT("\n(malloc called with size: %zu bytes)\n", size);
 
     // Go through all the chunks and see if there is one that is big enough and not allocated
     char *chunk_ptr = heap.bytes;
@@ -104,23 +105,27 @@ void *mymalloc(size_t size, char *file, int line) {
         To jump to new chunk, add the header size and chunk size
         */
         size_t cur_chunk_size = get_cur_chunk_size(chunk_ptr);
-        // DEBUG_PRINT("cur: %p, size = %zu\n", chunk_ptr, cur_chunk_size);
 
         if (!is_allocated(chunk_ptr) && cur_chunk_size >= size) {
             chunk_ptr[0] = 1;                    // Set chunk header to "allocated".
             set_cur_chunk_size(chunk_ptr, size); // Update chunk size in header.
 
             // If too large, split into two chunks
-            size_t remaining_size = cur_chunk_size - size - HEADER_SIZE;
-            DEBUG_PRINT("Cur size: %zu\n", cur_chunk_size);
+            long remaining_size = cur_chunk_size - size - HEADER_SIZE;
+            DEBUG_PRINT("malloc: Chunk size: %zu bytes\n", cur_chunk_size);
             if (remaining_size > 0) {
                 char *next_chunk_ptr = chunk_ptr + HEADER_SIZE + size;
-                DEBUG_PRINT("Cur: %p, New: %p.\n", chunk_ptr, next_chunk_ptr);
+                DEBUG_PRINT("malloc: Cur: %p (%zu bytes), New: %p (%zu bytes).\n", chunk_ptr, size,
+                            next_chunk_ptr, remaining_size);
                 // Initialize the new chunk.
                 next_chunk_ptr[0] = 0;
                 set_cur_chunk_size(next_chunk_ptr, remaining_size);
                 set_prev_chunk_size(next_chunk_ptr, size);
-                DEBUG_PRINT("Split chunk: %zu\n", remaining_size);
+                // Update following prev size
+                if (next_chunk_ptr + HEADER_SIZE + remaining_size < end_ptr) {
+                    char *following_chunk_ptr = next_chunk_ptr + HEADER_SIZE + remaining_size;
+                    set_prev_chunk_size(following_chunk_ptr, remaining_size);
+                }
             }
 
             // Return a void pointer that points to the payload (metadata pointer + 8 bytes)
@@ -141,10 +146,11 @@ void *mymalloc(size_t size, char *file, int line) {
  * @param line Line number where the free was requested.
  */
 void myfree(void *ptr, char *file, int line) {
-    DEBUG_PRINT("free called with ptr: %p\n", ptr);
     if (!is_initialized) {
         initialize_heap();
     }
+    DEBUG_PRINT("\n(free called with ptr: %p)\n", ptr);
+
     // Check null pointer
     if (ptr == NULL) {
         fprintf(stderr, "free: Invalid pointer (%s:%d)\n", file, line);
@@ -177,8 +183,6 @@ void myfree(void *ptr, char *file, int line) {
         exit(2);
     }
 
-    chunk_ptr[0] = 0; // Free chunk
-
     // Check previous and next chunks.
     size_t prev_size = get_prev_chunk_size(chunk_ptr);
     size_t cur_size = get_cur_chunk_size(chunk_ptr);
@@ -190,14 +194,17 @@ void myfree(void *ptr, char *file, int line) {
     if (next_ptr < end_ptr && !is_allocated(next_ptr)) {
         size_t next_size = get_cur_chunk_size(next_ptr);
         cur_size += HEADER_SIZE + next_size;
-        set_cur_chunk_size(chunk_ptr, cur_size);
     }
     // Merge previous chunk
-    if (prev_ptr >= heap.bytes && !is_allocated(prev_ptr)) {
+    if (prev_ptr >= heap.bytes && chunk_ptr > prev_ptr && !is_allocated(prev_ptr)) {
         cur_size += prev_size + HEADER_SIZE;
-        set_cur_chunk_size(prev_ptr, cur_size);
         chunk_ptr = prev_ptr;
     }
+
+    // Free chunk
+    chunk_ptr[0] = 0;
+    set_cur_chunk_size(chunk_ptr, cur_size);
+
     // Update following chunk's prev_size.
     char *following_ptr = chunk_ptr + HEADER_SIZE + cur_size;
     if (following_ptr < end_ptr) {
