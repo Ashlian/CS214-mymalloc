@@ -84,7 +84,7 @@ static void initialize_heap() {
  * @return Pointer to the allocated memory, or NULL if allocation fails.
  */
 void *mymalloc(size_t size, char *file, int line) {
-    size = (size + 7) & ~7; // Round to nearest multiple of 8
+    size = (size + 7) & ~7; // Round size to nearest multiple of 8 (Alignment Padding)
     DEBUG_PRINT("malloc called with size: %zu\n", size);
     // Initialize heap if not initialized
     if (!is_initialized) {
@@ -142,5 +142,44 @@ void myfree(void *ptr, char *file, int line) {
     DEBUG_PRINT("free called with ptr: %p\n", ptr);
     if (!is_initialized) {
         initialize_heap();
+    }
+    // Check null pointer
+    if (ptr == NULL) {
+        fprintf(stderr, "Invalid pointer (%s,.c:%d)", file, line);
+        exit(2);
+    }
+    char *chunk_ptr = (char *)ptr - HEADER_SIZE;
+    // Check pointer is in heap bounds.
+    if (chunk_ptr < heap.bytes || chunk_ptr >= end_point) {
+        fprintf(stderr, "Pointer out of bounds (%s,.c:%d)", file, line);
+        exit(2);
+    }
+    // Check double free.
+    if (chunk_ptr[0] == 0) {
+        fprintf(stderr, "Double free (%s,.c:%d)", file, line);
+        exit(2);
+    }
+
+    chunk_ptr[0] = 0; // Free chunk
+
+    // Check previous and next chunks
+    size_t prev_chunk_size = get_prev_chunk_size(chunk_ptr);
+    size_t cur_chunk_size = get_cur_chunk_size(chunk_ptr);
+
+    char *prev_chunk_ptr = chunk_ptr - HEADER_SIZE - prev_chunk_size;
+    char *next_chunk_ptr = chunk_ptr + HEADER_SIZE + cur_chunk_size;
+
+    // Merge next chunk.
+    if (next_chunk_ptr < end_point && next_chunk_ptr[0] == 0) {
+        size_t next_chunk_size = get_cur_chunk_size(next_chunk_ptr);
+        size_t merged_size = cur_chunk_size + HEADER_SIZE + next_chunk_size;
+        set_cur_chunk_size(chunk_ptr, merged_size);
+        // Update current chunk size in case previous chunk is also merged
+        cur_chunk_size = merged_size;
+    }
+    // Merge previous chunk.
+    if (prev_chunk_ptr >= heap.bytes && prev_chunk_ptr[0] == 0) {
+        size_t merged_size = prev_chunk_size + HEADER_SIZE + cur_chunk_size;
+        set_cur_chunk_size(prev_chunk_ptr, merged_size);
     }
 }
