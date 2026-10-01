@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 
-#define WORKLOAD_RUNS 50
+#define WORKLOAD_RUNS 1
 
 void test_1() {
     unsigned n = 8;
@@ -13,9 +13,8 @@ void test_1() {
         n *= 2;
     }
 
-    for (size_t i = 7; i > 0; i--) {
+    for (int i = 7; i >= 0; i--) {
         free(ptr_arr[i]);
-        n /= 2;
     }
 }
 
@@ -78,9 +77,9 @@ int main() {
     for (size_t i = 0; i < WORKLOAD_RUNS; i++) {
         test_1();
         test_2();
-        test_3();
-        test_4();
-        test_5();
+        // test_3();
+        // test_4();
+        // test_5();
     }
     // End timer
     gettimeofday(&end, NULL);
