@@ -104,7 +104,7 @@ void *mymalloc(size_t size, char *file, int line) {
         To jump to new chunk, add the header size and chunk size
         */
         size_t cur_chunk_size = get_cur_chunk_size(chunk_ptr);
-        DEBUG_PRINT("cur: %p, size = %zu\n", chunk_ptr, cur_chunk_size);
+        // DEBUG_PRINT("cur: %p, size = %zu\n", chunk_ptr, cur_chunk_size);
 
         if (!is_allocated(chunk_ptr) && cur_chunk_size >= size) {
             chunk_ptr[0] = 1;                    // Set chunk header to "allocated".
@@ -112,7 +112,7 @@ void *mymalloc(size_t size, char *file, int line) {
 
             // If too large, split into two chunks
             size_t remaining_size = cur_chunk_size - size - HEADER_SIZE;
-            DEBUG_PRINT("Cur size; %zu\n", cur_chunk_size);
+            DEBUG_PRINT("Cur size: %zu\n", cur_chunk_size);
             if (remaining_size > 0) {
                 char *next_chunk_ptr = chunk_ptr + HEADER_SIZE + size;
                 DEBUG_PRINT("Cur: %p, New: %p.\n", chunk_ptr, next_chunk_ptr);
@@ -147,13 +147,13 @@ void myfree(void *ptr, char *file, int line) {
     }
     // Check null pointer
     if (ptr == NULL) {
-        fprintf(stderr, "Invalid pointer (%s:%d)", file, line);
+        fprintf(stderr, "free: Invalid pointer (%s:%d)\n", file, line);
         exit(2);
     }
     char *chunk_ptr = (char *)ptr - HEADER_SIZE;
     // Check pointer is in heap bounds.
     if (chunk_ptr < heap.bytes || chunk_ptr >= end_ptr) {
-        fprintf(stderr, "Pointer out of bounds (%s:%d)", file, line);
+        fprintf(stderr, "free: Pointer out of bounds (%s:%d)\n", file, line);
         exit(2);
     }
     // Check pointer is valid header.
@@ -167,7 +167,7 @@ void myfree(void *ptr, char *file, int line) {
         temp_ptr += HEADER_SIZE + get_cur_chunk_size(temp_ptr);
     }
     if (!valid_ptr) {
-        fprintf(stderr, "Pointer is not at start of chunk (%s:%d)", file, line);
+        fprintf(stderr, "free: Pointer is not at start of chunk (%s:%d)\n", file, line);
         exit(2);
     }
 
@@ -187,15 +187,16 @@ void myfree(void *ptr, char *file, int line) {
     char *next_ptr = chunk_ptr + HEADER_SIZE + cur_size;
 
     // Merge next chunk
-    if (next_ptr < end_ptr && is_allocated(next_ptr)) {
+    if (next_ptr < end_ptr && !is_allocated(next_ptr)) {
         size_t next_size = get_cur_chunk_size(next_ptr);
         cur_size += HEADER_SIZE + next_size;
         set_cur_chunk_size(chunk_ptr, cur_size);
     }
     // Merge previous chunk
-    if (prev_ptr >= heap.bytes && is_allocated(prev_ptr)) {
+    if (prev_ptr >= heap.bytes && !is_allocated(prev_ptr)) {
         cur_size += prev_size + HEADER_SIZE;
         set_cur_chunk_size(prev_ptr, cur_size);
+        chunk_ptr = prev_ptr;
     }
     // Update following chunk's prev_size.
     char *following_ptr = chunk_ptr + HEADER_SIZE + cur_size;
