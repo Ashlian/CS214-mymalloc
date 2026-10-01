@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 
-#define WORKLOAD_RUNS 1
+#define WORKLOAD_RUNS 50
 
 void test_1() {
     unsigned n = 8;
@@ -44,7 +44,6 @@ void test_3() {
         } else {
             // Random index
             int idx = rand() % cur_allocated;
-            fprintf(stderr, "cur_allocated: %d, idx: %d", cur_allocated, idx);
             // Swap with last object in arr
             void *temp = ptr_arr[cur_allocated - 1];
             ptr_arr[cur_allocated - 1] = ptr_arr[idx];
