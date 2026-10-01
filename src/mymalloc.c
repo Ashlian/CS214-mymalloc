@@ -14,7 +14,9 @@ static union {
     double not_used;
 } heap;
 static int is_initialized = 0;
-static char *end_point = heap.bytes + MEMLENGTH;
+static char *end_ptr = heap.bytes + MEMLENGTH;
+
+static int is_allocated(char *ptr) { return ptr[0]; }
 
 /** Get the size of current chunk.  */
 static size_t get_cur_chunk_size(char *ptr) {
@@ -45,10 +47,10 @@ static void leak_check() {
     unsigned allocated_chunks = 0;
     size_t allocated_bytes = 0;
 
-    while (chunk_ptr < end_point) {
+    while (chunk_ptr < end_ptr) {
         size_t cur_chunk_size = get_cur_chunk_size(chunk_ptr);
         DEBUG_PRINT("cur: %p, size = %zu\n", chunk_ptr, cur_chunk_size);
-        if (*chunk_ptr) {
+        if (is_allocated(chunk_ptr)) {
             allocated_chunks++;
             allocated_bytes += cur_chunk_size;
         }
@@ -93,7 +95,7 @@ void *mymalloc(size_t size, char *file, int line) {
 
     // Go through all the chunks and see if there is one that is big enough and not allocated
     char *chunk_ptr = heap.bytes;
-    while (chunk_ptr < end_point) {
+    while (chunk_ptr < end_ptr) {
         /*
         If current chunk can fill request, change the metadata of the current chunk and
         create a new chunk with leftover space.
@@ -104,7 +106,7 @@ void *mymalloc(size_t size, char *file, int line) {
         size_t cur_chunk_size = get_cur_chunk_size(chunk_ptr);
         DEBUG_PRINT("cur: %p, size = %zu\n", chunk_ptr, cur_chunk_size);
 
-        if (chunk_ptr[0] == 0 && cur_chunk_size >= size) {
+        if (!is_allocated(chunk_ptr) && cur_chunk_size >= size) {
             chunk_ptr[0] = 1;                    // Set chunk header to "allocated".
             set_cur_chunk_size(chunk_ptr, size); // Update chunk size in header.
 
@@ -127,7 +129,7 @@ void *mymalloc(size_t size, char *file, int line) {
         chunk_ptr += (cur_chunk_size + HEADER_SIZE); // move to next chunk
     }
     // Report error if request is too big (careful for pointer out of bounds)
-    fprintf(stderr, "malloc: Unable to allocate %zu bytes (%s.c:%d)", size, file, line);
+    fprintf(stderr, "malloc: Unable to allocate %zu bytes (%s:%d)", size, file, line);
     return NULL;
 }
 
@@ -145,41 +147,59 @@ void myfree(void *ptr, char *file, int line) {
     }
     // Check null pointer
     if (ptr == NULL) {
-        fprintf(stderr, "Invalid pointer (%s,.c:%d)", file, line);
+        fprintf(stderr, "Invalid pointer (%s:%d)", file, line);
         exit(2);
     }
     char *chunk_ptr = (char *)ptr - HEADER_SIZE;
     // Check pointer is in heap bounds.
-    if (chunk_ptr < heap.bytes || chunk_ptr >= end_point) {
-        fprintf(stderr, "Pointer out of bounds (%s,.c:%d)", file, line);
+    if (chunk_ptr < heap.bytes || chunk_ptr >= end_ptr) {
+        fprintf(stderr, "Pointer out of bounds (%s:%d)", file, line);
         exit(2);
     }
+    // Check pointer is valid header.
+    char *temp_ptr = heap.bytes;
+    int valid_ptr = 0;
+    while (temp_ptr < end_ptr) {
+        if (chunk_ptr == temp_ptr) {
+            valid_ptr = 1;
+            break;
+        }
+        temp_ptr += HEADER_SIZE + get_cur_chunk_size(temp_ptr);
+    }
+    if (!valid_ptr) {
+        fprintf(stderr, "Pointer is not at start of chunk (%s:%d)", file, line);
+        exit(2);
+    }
+
     // Check double free.
-    if (chunk_ptr[0] == 0) {
-        fprintf(stderr, "Double free (%s,.c:%d)", file, line);
+    if (!is_allocated(chunk_ptr)) {
+        fprintf(stderr, "Double free (%s:%d)", file, line);
         exit(2);
     }
 
     chunk_ptr[0] = 0; // Free chunk
 
-    // Check previous and next chunks
-    size_t prev_chunk_size = get_prev_chunk_size(chunk_ptr);
-    size_t cur_chunk_size = get_cur_chunk_size(chunk_ptr);
+    // Check previous and next chunks.
+    size_t prev_size = get_prev_chunk_size(chunk_ptr);
+    size_t cur_size = get_cur_chunk_size(chunk_ptr);
 
-    char *prev_chunk_ptr = chunk_ptr - HEADER_SIZE - prev_chunk_size;
-    char *next_chunk_ptr = chunk_ptr + HEADER_SIZE + cur_chunk_size;
+    char *prev_ptr = chunk_ptr - HEADER_SIZE - prev_size;
+    char *next_ptr = chunk_ptr + HEADER_SIZE + cur_size;
 
-    // Merge next chunk.
-    if (next_chunk_ptr < end_point && next_chunk_ptr[0] == 0) {
-        size_t next_chunk_size = get_cur_chunk_size(next_chunk_ptr);
-        size_t merged_size = cur_chunk_size + HEADER_SIZE + next_chunk_size;
-        set_cur_chunk_size(chunk_ptr, merged_size);
-        // Update current chunk size in case previous chunk is also merged
-        cur_chunk_size = merged_size;
+    // Merge next chunk
+    if (next_ptr < end_ptr && is_allocated(next_ptr)) {
+        size_t next_size = get_cur_chunk_size(next_ptr);
+        cur_size += HEADER_SIZE + next_size;
+        set_cur_chunk_size(chunk_ptr, cur_size);
     }
-    // Merge previous chunk.
-    if (prev_chunk_ptr >= heap.bytes && prev_chunk_ptr[0] == 0) {
-        size_t merged_size = prev_chunk_size + HEADER_SIZE + cur_chunk_size;
-        set_cur_chunk_size(prev_chunk_ptr, merged_size);
+    // Merge previous chunk
+    if (prev_ptr >= heap.bytes && is_allocated(prev_ptr)) {
+        cur_size += prev_size + HEADER_SIZE;
+        set_cur_chunk_size(prev_ptr, cur_size);
+    }
+    // Update following chunk's prev_size.
+    char *following_ptr = chunk_ptr + HEADER_SIZE + cur_size;
+    if (following_ptr < end_ptr) {
+        set_prev_chunk_size(following_ptr, cur_size);
     }
 }
