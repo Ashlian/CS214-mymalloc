@@ -33,22 +33,29 @@ void test_2() {
 
 void test_3() {
     unsigned n = 120;
-    unsigned num_allocated = 0;
-    unsigned to_allocate = 0;
+    unsigned total_allocated = 0, cur_allocated = 0;
     void *ptr_arr[n];
 
-    while (num_allocated < 120) {
-        to_allocate = rand() % 2;
-        if (to_allocate || num_allocated <= 1) {
-            ptr_arr[num_allocated] = malloc(1);
+    while (total_allocated < n) {
+        unsigned to_allocate = rand() % 2;
+        if (to_allocate || cur_allocated < 1) {
+            ptr_arr[cur_allocated++] = malloc(1);
+            total_allocated++;
         } else {
-            int idx = rand() % num_allocated;
-            free(ptr_arr[idx]);
-            num_allocated--;
+            // Random index
+            int idx = rand() % cur_allocated;
+            fprintf(stderr, "cur_allocated: %d, idx: %d", cur_allocated, idx);
+            // Swap with last object in arr
+            void *temp = ptr_arr[cur_allocated - 1];
+            ptr_arr[cur_allocated - 1] = ptr_arr[idx];
+            ptr_arr[idx] = temp;
+            // Free object
+            free(ptr_arr[cur_allocated - 1]);
+            cur_allocated--;
         }
     }
 
-    for (size_t i = 0; i < n; i++) {
+    for (size_t i = 0; i < cur_allocated; i++) {
         free(ptr_arr[i]);
     }
 }
@@ -69,7 +76,8 @@ int main() {
     double total_elapsed = 0.0, avg_elasped = 0.0;
 
     // Seed RNG with curent time.
-    srand(gettimeofday(&cur, NULL));
+    gettimeofday(&cur, NULL);
+    srand(cur.tv_usec);
 
     // Start timer
     gettimeofday(&start, NULL);
@@ -77,7 +85,7 @@ int main() {
     for (size_t i = 0; i < WORKLOAD_RUNS; i++) {
         test_1();
         test_2();
-        // test_3();
+        test_3();
         // test_4();
         // test_5();
     }
