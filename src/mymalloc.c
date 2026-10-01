@@ -173,7 +173,7 @@ void myfree(void *ptr, char *file, int line) {
 
     // Check double free.
     if (!is_allocated(chunk_ptr)) {
-        fprintf(stderr, "Double free (%s:%d)", file, line);
+        fprintf(stderr, "free: Double free (%s:%d)\n", file, line);
         exit(2);
     }
 
