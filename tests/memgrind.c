@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 
-#define WORKLOAD_RUNS 50
+#define WORKLOAD_RUNS 1
 
 void test_1() {
     unsigned n = 8;
@@ -60,8 +60,22 @@ void test_3() {
 }
 
 void test_4() {
-    // To be implemented...
-    return;
+    int size = 4088;
+    int count = 1;
+    void *ptr_arr[256];
+
+    for (size_t iter = 0; iter < 9; iter++) {
+        for (size_t i = 0; i < count; i++) {
+            ptr_arr[i] = malloc(size);
+        }
+
+        for (size_t i = 0; i < count; i++) {
+            free(ptr_arr[i]);
+        }
+
+        size = (size - 8) / 2;
+        count *= 2;
+    }
 }
 
 void test_5() {
@@ -82,10 +96,10 @@ int main() {
     gettimeofday(&start, NULL);
 
     for (size_t i = 0; i < WORKLOAD_RUNS; i++) {
-        test_1();
-        test_2();
-        test_3();
-        // test_4();
+        // test_1();
+        // test_2();
+        // test_3();
+        test_4();
         // test_5();
     }
     // End timer
