@@ -91,6 +91,11 @@ void *mymalloc(size_t size, char *file, int line) {
     if (!is_initialized) {
         initialize_heap();
     }
+    if (size > (MEMLENGTH - HEADER_SIZE)) {
+        fprintf(stderr, "malloc: Unable to allocate %zu bytes (%s:%d)\n", size, file, line);
+        return NULL;
+    }
+
     size = (size + 7) & ~7; // Round size to nearest multiple of 8 (Alignment Padding)
     DEBUG_PRINT("\n(malloc called with size: %zu bytes)\n", size);
 
@@ -108,12 +113,12 @@ void *mymalloc(size_t size, char *file, int line) {
 
         if (!is_allocated(chunk_ptr) && cur_chunk_size >= size) {
             chunk_ptr[0] = 1;                    // Set chunk header to "allocated".
-            set_cur_chunk_size(chunk_ptr, size); // Update chunk size in header.
 
             // If too large, split into two chunks
             long remaining_size = cur_chunk_size - size - HEADER_SIZE;
             DEBUG_PRINT("malloc: Chunk size: %zu bytes\n", cur_chunk_size);
             if (remaining_size > 0) {
+                set_cur_chunk_size(chunk_ptr, size); // Update chunk size in header.
                 char *next_chunk_ptr = chunk_ptr + HEADER_SIZE + size;
                 DEBUG_PRINT("malloc: Cur: %p (%zu bytes), New: %p (%zu bytes).\n", chunk_ptr, size,
                             next_chunk_ptr, remaining_size);
@@ -129,12 +134,12 @@ void *mymalloc(size_t size, char *file, int line) {
             }
 
             // Return a void pointer that points to the payload (metadata pointer + 8 bytes)
-            return (void *)chunk_ptr + HEADER_SIZE;
+            return (void *)(chunk_ptr + HEADER_SIZE);
         }
         chunk_ptr += (cur_chunk_size + HEADER_SIZE); // move to next chunk
     }
     // Report error if request is too big (careful for pointer out of bounds)
-    fprintf(stderr, "malloc: Unable to allocate %zu bytes (%s:%d)", size, file, line);
+    fprintf(stderr, "malloc: Unable to allocate %zu bytes (%s:%d)\n", size, file, line);
     return NULL;
 }
 

@@ -1,11 +1,18 @@
 #include "mymalloc.h"
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 
 #define MEMSIZE 4096
 #define HEADERSIZE 8
 #define OBJECTS 64
 #define OBJSIZE (MEMSIZE / OBJECTS - HEADERSIZE)
+
+#ifdef DEBUG
+#define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) ((void)0)
+#endif
 
 /** 
  *
@@ -119,9 +126,9 @@ void test_4() {
     }
     free(c);
     
-    // Free the rest of the pointers
     free(obj[2]);
     free(obj[5]);
+    // Free the rest of the pointers
     for(j = 9; j < OBJECTS; j++) {
         free(obj[j]);
     }
@@ -129,11 +136,79 @@ void test_4() {
 
 }
 
+static int check_values(unsigned char *p, size_t n, char a) {
+    for (size_t i = 0; i < n; i++) {
+        if (p[i] != a) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 /** 
  *
  */
 void test_5() {
+    unsigned char *small_chunks[OBJECTS];
+    unsigned char *big_chunks[OBJECTS];
+    int num_bigs = 0;
+    int errors = 0;
 
+    // fill memory with objects and assign them their own value
+    for (int i = 0; i < OBJECTS; i++) {
+        small_chunks[i] = malloc(OBJSIZE);
+        if (small_chunks[i] == NULL) {
+            printf("Unable to allocate object %d\n", i);
+            exit(EXIT_FAILURE);
+        }
+        memset(small_chunks[i], i+1, OBJSIZE);
+    }
+
+    // Free everything except every third chunk, every live chunk has free neighbors on both sides
+    for (int i = 0; i < OBJECTS; i++) {
+        if (i % 3 != 1) {
+            free(small_chunks[i]);
+            small_chunks[i] = NULL;
+        }
+    }
+
+    // There should not be gaps that are more than two chunks, so this makes sure 
+    char *bad_request = malloc(3 * OBJSIZE);
+    if (bad_request != NULL) {
+        printf("Test 5: Live chunks have been resized\n");
+        free(bad_request);
+        return;
+    }
+
+    // Refill the gaps with bigger chunks with their own values
+    while (num_bigs < OBJECTS && (big_chunks[num_bigs] = malloc(2 * OBJSIZE)) != NULL) {
+        memset(big_chunks[num_bigs], 70 + num_bigs, (2 * OBJSIZE));
+        num_bigs++;
+    }
+
+    // Check that everything holds the pattern (nothing should be overwritten)
+    for (int i = 0; i < OBJECTS; i++) {
+        if ((small_chunks[i] != NULL) && !check_values(small_chunks[i], OBJSIZE, i+1)) {
+            errors++;
+        }
+    }
+    for (int j = 0; j < num_bigs; j++) {
+        if (!check_values(big_chunks[j], (2 * OBJSIZE), 70 + j)) {
+            errors++;
+        }
+    }
+    fprintf(stderr, "Test 5: %d resizing errors detected\n", errors);
+
+    // Prevent leak
+    for (int i = 0; i < OBJECTS; i++) { 
+        if (small_chunks[i] != NULL) {
+            free(small_chunks[i]);
+        }   
+    }
+    for (int j = 0; j < num_bigs; j++) {
+        free(big_chunks[j]);
+    }
+    if (errors == 0) printf("Test 5: Allocated chunks successfully never resize unless explicitly requested\n");
 }
 
 int main(int argc, char **argv){
