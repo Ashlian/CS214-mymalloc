@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -std=c99 -g -Wall -fsanitize=address,undefined -Iinclude -DDEBUG
+CFLAGS = -std=c99 -g -Wall -fsanitize=address,undefined -Iinclude 
 
 all: build/memtest build/memgrind build/memcorrect build/memerr
 
@@ -33,13 +33,13 @@ build/memcorrect: build/memcorrect.o build/mymalloc.o
 build/memerr: build/memerr.o build/mymalloc.o
 	$(CC) $(CFLAGS) build/memerr.o build/mymalloc.o -o build/memerr
 
-test: build/memtest
+test: build/memtest  
 	./build/memtest
 
 run: build/memgrind
 	./build/memgrind
 
-correctness: build/memcorrect
+correct: build/memcorrect
 	./build/memcorrect
 
 errtest-%: build/memerr
@@ -48,4 +48,4 @@ errtest-%: build/memerr
 clean:
 	rm -rf build
 
-.PHONY: all test run clean
+.PHONY: all test run correct clean

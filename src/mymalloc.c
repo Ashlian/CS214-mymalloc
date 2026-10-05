@@ -158,8 +158,7 @@ void myfree(void *ptr, char *file, int line) {
 
     // Check null pointer
     if (ptr == NULL) {
-        fprintf(stderr, "free: Invalid pointer (%s:%d)\n", file, line);
-        exit(2);
+        return;
     }
     char *chunk_ptr = (char *)ptr - HEADER_SIZE;
     // Check pointer is in heap bounds.

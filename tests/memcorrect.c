@@ -136,6 +136,7 @@ void test_4() {
 
 }
 
+
 static int check_values(unsigned char *p, size_t n, char a) {
     for (size_t i = 0; i < n; i++) {
         if (p[i] != a) {
